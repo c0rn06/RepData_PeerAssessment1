@@ -1,0 +1,131 @@
+# PA1_template
+R Corn  
+June 26, 2017  
+
+
+
+
+## Loading and preprocessing the data
+
+1)  Load the data (i.e. read.csv())
+2)  Process/transform the data (if necessary) into a format suitable for your analysis
+
+
+```r
+Mydata <- read.csv(file="activity.csv", header=TRUE, sep=",")
+library(plyr)
+library(ggplot2)
+
+Mydata$day <- weekdays(as.Date(Mydata$date))
+Mydata$DateTime<- as.POSIXct(Mydata$date, format="%Y-%m-%d")
+```
+
+##What is mean total number of steps taken per day?
+For this part of the assignment, you can ignore the missing values in the dataset.
+
+1)  Calculate the total number of steps taken per day
+2)  If you do not understand the difference between a histogram and a barplot, research the difference between them. Make a histogram of the total number of steps taken each day
+3)  Calculate and report the mean and median of the total number of steps taken per day
+
+
+
+```r
+aggDay <- aggregate(Mydata$steps, by=list(date = Mydata$date) , FUN = sum)
+hist(aggDay$x, main = "Histogram of steps per day")
+```
+
+![](PA1_template_files/figure-html/hist-1.png)<!-- -->
+
+```r
+mean <- mean(aggDay$x, na.rm=TRUE)
+median <- median(aggDay$x, na.rm=TRUE)
+```
+
+##What is the average daily activity pattern?
+
+1) Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+2) Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+
+```r
+aggInterval <- aggregate(Mydata$steps, by=list(interval = Mydata$interval), FUN=mean, na.rm=TRUE)
+plot(aggInterval, type = "l", ylab = "Avg Steps", main = "Avgerage Steps Per 5 Min Interval")
+```
+
+![](PA1_template_files/figure-html/interval-1.png)<!-- -->
+
+```r
+aggInterval[aggInterval$x == max(aggInterval$x),]
+```
+
+```
+##     interval        x
+## 104      835 206.1698
+```
+
+##Imputing missing values
+Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
+
+1)  Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+2)  Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+3)  Create a new dataset that is equal to the original dataset but with the missing data filled in.
+4)  Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+
+```r
+sum(is.na(Mydata$steps))
+```
+
+```
+## [1] 2304
+```
+
+```r
+colnames(aggInterval) <- c("interval", "x")
+activity <- join(Mydata, aggInterval, by = "interval")
+activity$steps <- ifelse(!is.na(activity$steps), activity$steps, activity$x)
+activity <- subset(activity, select = -c(x))
+
+aggDayActivity <- aggregate(activity$steps, by=list(date = activity$date) , FUN = sum)
+hist(aggDayActivity$x)
+```
+
+![](PA1_template_files/figure-html/missing-1.png)<!-- -->
+
+```r
+mean(aggDayActivity$x, na.rm=TRUE)
+```
+
+```
+## [1] 10766.19
+```
+
+```r
+median(aggDayActivity$x, na.rm=TRUE)
+```
+
+```
+## [1] 10766.19
+```
+
+##Are there differences in activity patterns between weekdays and weekends?
+For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+1)  Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+2)  Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data.
+
+
+```r
+activity$dayFactor <- ifelse(activity$day %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+
+weekend <- activity[activity$dayFactor == "Weekend", ]
+weekday <- activity[activity$dayFactor == "Weekday", ]
+aggWeekend <- aggregate(weekend$steps, by=list(interval = weekend$interval), FUN=mean, na.rm=TRUE)
+aggWeekday <- aggregate(weekday$steps, by=list(interval = weekday$interval), FUN=mean, na.rm=TRUE)
+
+par(mfrow = c(2, 1))
+plot(aggWeekend, type = "l", ylab = "Avg Steps", main = "Weekend")
+plot(aggWeekday, type = "l", ylab = "Avg Steps", main = "Weekday")
+```
+
+![](PA1_template_files/figure-html/weekday-1.png)<!-- -->
