@@ -1,0 +1,167 @@
+---
+title: "Repro Research Proj 2"
+author: "R Corn"
+date: "June 29, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Health and Economic Ipmacts of Weather Events in the US
+
+#Synopsis
+
+This project involves exploring the US NOAA storm database to get an idea of what health and economic losses can be attributed to certain types of weather events.  
+
+
+#Data Processing
+
+The data for this assignment come in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. You can download the file from the course web site:
+
+[Storm Data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+
+There is also some documentation of the database available. Here you will find how some of the variables are constructed/defined.
+
+[National Weather Service Storm Data Documentation](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+
+[National Climatic Data Center Storm Events FAQ](https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+
+
+Downloading data file to WD, unzipping, and reading it into a dataframe if not already done.  
+
+```{r loading}
+
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+if (!file.exists("StormData.csv.bz2")) {
+
+  download.file(url, "StormData.csv.bz2")
+}
+
+ if (!file.exists("StormData.csv")) {
+   library(R.utils)
+  bunzip2("StormData.csv.bz2", "StormData.csv")
+}
+df <- read.csv("StormData.csv", stringsAsFactors = FALSE)
+
+library(dplyr)
+```
+
+
+Selecting the needed columns for comparing events to fatalities, summarizing by sum, and arranging in decreasing order
+Shown are the worst 6 event types with regards to fatalities
+
+```{r }
+fatal <- select(df, EVTYPE, FATALITIES)
+fatal <- group_by(fatal, EVTYPE)
+fatal <- summarize(fatal, totalfatal = sum(FATALITIES))
+fatal <- arrange(fatal, -totalfatal)
+head(fatal)
+```
+
+Selecting the needed columns for comparing events to injuries, summarizing by sum, and arranging in decreasing order
+Shown are the worst 6 event types with regards to injuries
+
+```{r }
+injure <- select(df, EVTYPE, INJURIES)
+injure <- group_by(injure, EVTYPE)
+injure <- summarize(injure, totalinjure = sum(INJURIES))
+injure <- arrange(injure, -totalinjure)
+head(injure)
+```
+
+
+Selecting the needed columns for comparing events to their economic impact
+
+```{r }
+damage <- select(df, EVTYPE, PROPDMG:CROPDMGEXP)
+```
+
+Unique function is used to find what possible variables are in the exp column so we can clean it
+
+```{r }
+unique(df$PROPDMGEXP)
+```
+
+Cleaning the exp column
+
+```{r }
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='')|(damage$PROPDMGEXP=='+')|(damage$PROPDMGEXP=='?')] <- 1
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='h')|(damage$PROPDMGEXP=='H')|(damage$PROPDMGEXP=='-')] <- 1    
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='0')] <- 1
+
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='K')] <- 3
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='m')|(damage$PROPDMGEXP=='M')] <- 6
+damage$PROPDMGEXP[(damage$PROPDMGEXP=='B')] <- 9
+
+```
+
+Same for the crops...
+
+```{r }
+unique(df$CROPDMGEXP)
+
+damage$CROPDMGEXP[(damage$CROPDMGEXP=='')|(damage$CROPDMGEXP=='?')|(damage$CROPDMGEXP=='0')] <- 1
+damage$CROPDMGEXP[(damage$CROPDMGEXP=='K')|(damage$CROPDMGEXP=='k')] <- 3
+damage$CROPDMGEXP[(damage$CROPDMGEXP=='M')|(damage$CROPDMGEXP=='m')] <- 6
+damage$CROPDMGEXP[(damage$CROPDMGEXP=='B')] <- 9
+```
+
+Use str to find what type of classes are in the dataframe (I know from the "stringsAsFactors = FALSE" the data will need further manipulation).
+
+```{r }
+str(damage)
+```
+
+Need to change to chr's to num's
+
+```{r }
+damage$PROPDMGEXP <- as.numeric(damage$PROPDMGEXP)
+damage$CROPDMGEXP <- as.numeric(damage$CROPDMGEXP)
+```
+
+Do the math to calculate the damage done to property and crops, combined.
+
+```{r }
+damage$DMG <- damage$PROPDMG*(10^damage$PROPDMGEXP)
+damage$CROPDMG <- damage$CROPDMG*(10^damage$CROPDMGEXP)+damage$DMG
+```
+
+Check out the top 6 worst events in the set after selecting, grouping and summing the correct fields.
+
+```{r }
+damagetable <- select(damage, EVTYPE, DMG) %>% group_by(EVTYPE) %>% summarize(totaldamage = sum(DMG))
+damagetable <- arrange(damagetable, -totaldamage)
+head(damagetable)
+```
+
+
+#Results
+
+Tornado's had the most fatalities with 5633 deaths.  Shown are the top 10 worst actors.
+
+```{r }
+fatal <- fatal[1:10,]
+par(mar=c(12,5,2,2))
+barplot(height = fatal$totalfatal, names.arg = fatal$EVTYPE, main = "Fatalities by Event", las = 2, col = "blue")
+```
+
+Tornados also caused the most injuries with 91346.  Shown are the top 10 worst actors.
+
+```{r }
+injure <- injure[1:10,]
+par(mar=c(12,5,2,2))
+barplot(height = injure$totalinjure, names.arg = injure$EVTYPE, main = "Injuries by Event", las = 2, col = "red")
+```
+
+Floods caused the most damage with $144,657,709,870 
+
+```{r }
+damagetable <- damagetable[1:10,]
+par(mar=c(12,5,2,2))
+barplot(height = damagetable$totaldamage, names.arg = damagetable$EVTYPE, main = "Cost of Damage by Event", 
+          las = 2, col = "green")
+```
